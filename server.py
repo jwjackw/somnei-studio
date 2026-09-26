@@ -19,12 +19,22 @@ JOBS_FILE = os.path.join(DATA, 'jobs.json')
 ASSETS_FILE = os.path.join(DATA, 'assets.json')
 MODELS_FILE = os.path.join(ROOT, 'models.json')
 PORT = int(os.environ.get('STUDIO_PORT', '4950'))
+VERSION = '0.3.0'
 for d in (DATA, UPLOADS, OUT):
     os.makedirs(d, exist_ok=True)
 
+NO_WINDOW = 0x08000000 if os.name == 'nt' else 0  # hide ffmpeg console windows on Windows
 UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36'
 API = 'https://api.kie.ai'
 UPLOAD_API = 'https://kieai.redpandaai.co'
+
+
+def open_folder(path):
+    import subprocess
+    if os.name == 'nt':
+        os.startfile(path)
+    else:
+        subprocess.Popen(['open' if sys.platform == 'darwin' else 'xdg-open', path])
 
 
 def kie_key():
@@ -160,6 +170,86 @@ def build_request(model, params):
         if mid and 'model' not in body:
             body['model'] = mid
     return c['path'], body
+
+
+def estimate(model, params, assets=None):
+    """Credit estimate for one run. Mirrors cost() in static/app.js.
+    Returns {'credits': float, 'approx': bool} or {'credits': None, 'reason': str}."""
+    c = model.get('cost')
+    if not c:
+        return {'credits': None, 'reason': 'kie.ai does not list a price for this model'}
+    defaults = {p['name']: p.get('default') for p in model['params']}
+
+    def pv(name):
+        if name.startswith('@has:'):
+            v = params.get(name[5:])
+            return str(bool(v)).lower() if not isinstance(v, list) else str(len(v) > 0).lower()
+        v = params.get(name, defaults.get(name))
+        if isinstance(v, bool):
+            return str(v).lower()
+        return str(v)
+
+    rate = c.get('rate')
+    if c.get('by'):
+        rate = c['rates'].get('|'.join(pv(b) for b in c['by']))
+    if rate is None:
+        return {'credits': None, 'reason': 'no price for this combination of settings'}
+    if c['type'] == 'per_1k_chars':
+        n = len(str(params.get(c['field']) or ''))
+        return {'credits': max(0.1, round(n / 1000 * rate, 1)), 'approx': False}
+    secs = 1
+    if c['type'] == 'per_second':
+        src = c['sec']
+        if src.startswith('@duration:'):
+            dur = media_duration(params.get(src[10:]), assets)
+            if not dur:
+                return {'credits': None, 'reason': 'needs the length of ' + src[10:]}
+            secs = -(-dur // 1)
+        else:
+            secs = float(params.get(src, defaults.get(src)) or 0)
+    return {'credits': round(rate * secs, 1), 'approx': bool(c.get('approx'))}
+
+
+def resolve_assets(model, params):
+    """Let callers (CLI, MCP) pass library asset ids where a media URL is expected."""
+    assets = {a['id']: a['url'] for a in load(ASSETS_FILE, [])}
+    # a finished job id also works, so results chain without a download and re-upload
+    for j in load(JOBS_FILE, []):
+        f0 = next((f for f in j.get('files', []) if f.get('remote')), None)
+        if j.get('status') == 'done' and f0:
+            assets.setdefault(j['id'], f0['remote'])
+    out = dict(params)
+    for p in model['params']:
+        v = out.get(p['name'])
+        if p.get('media') and v:
+            f = lambda x: assets[x] if isinstance(x, str) and x in assets else x
+            out[p['name']] = [f(x) for x in v] if isinstance(v, list) else f(v)
+    return out
+
+
+def media_duration(value, assets=None):
+    """Seconds of an asset referenced by id or kie URL (list or single)."""
+    if isinstance(value, list):
+        value = value[0] if value else None
+    if not value:
+        return None
+    for a in assets if assets is not None else load(ASSETS_FILE, []):
+        if value in (a.get('id'), a.get('url')):
+            return a.get('duration')
+    return None
+
+
+def probe_duration(path):
+    import subprocess
+    fp = ffmpeg_bin('ffprobe')
+    if not fp:
+        return None
+    try:
+        p = subprocess.run([fp, '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path],
+                           capture_output=True, text=True, timeout=30, creationflags=NO_WINDOW)
+        return round(float(p.stdout.strip()), 2)
+    except Exception:
+        return None
 
 
 def extract_task_id(r):
@@ -391,15 +481,51 @@ def board_file_url(b, fname, key):
     return url
 
 
+# Consistency locks. Image models drift unless every reference is labelled and told
+# what it controls; video models improvise extra action and on-screen text unless the
+# prompt closes those doors. Written in lowercase: Nano Banana renders capitalised
+# instruction words as literal text.
+REF_LOCKS = {
+    'character': 'reproduce this exact person: same face shape, eyes, nose, lips, jaw, skin tone, hairline, '
+                 'hair colour and style; do not beautify, age, or restyle them',
+    'product': 'reproduce this exact product: same shape, proportions, colours, materials and markings; '
+               'do not invent logos, labels or text on it',
+    'style': 'match only the rendering style, palette and colour grading; do not copy its people, text or logos',
+    'setting': 'keep this location recognisable: same layout, furniture and light direction',
+}
+CLIP_LOCK = ('one continuous shot. only the described action happens, everything else stays exactly as in the '
+             'start frame. faces, outfits and the product keep their exact look. no on screen text, captions, '
+             'subtitles, logos or watermarks.')
+
+
+def frame_prompt(b, s, refs_used):
+    lines = []
+    if refs_used:
+        lines.append('image references: ' + '; '.join(
+            f"image {i + 1} = {r.get('label') or r.get('role') or 'reference'}" for i, r in enumerate(refs_used)))
+        for i, r in enumerate(refs_used):
+            lock = r.get('lock') or REF_LOCKS.get(r.get('role', ''))
+            if lock:
+                lines.append(f'image {i + 1}: {lock}.')
+    if b.get('style'):
+        lines.append(b['style'])
+    lines.append(s['picture'])
+    return '\n\n'.join(lines)
+
+
+def clip_prompt(b, s):
+    lock = s.get('lock', b.get('clipLock', CLIP_LOCK))
+    return s['motion'].rstrip() + ('\n\n' + lock if lock else '')
+
+
 def start_frame(b, s):
     fm = b.get('frameModel', 'nano-banana-2')
     model = model_by_id(fm)
     urls, _ = ref_urls(b)
-    style = b.get('style', '')
-    prompt = (style + '\n\n' if style else '') + s['picture']
-    params = {'prompt': prompt, 'aspect_ratio': b.get('aspect', '9:16'),
+    idx = [i for i in s.get('refIdx', range(len(urls))) if i < len(urls)]
+    params = {'prompt': frame_prompt(b, s, [b['refs'][i] for i in idx]), 'aspect_ratio': b.get('aspect', '9:16'),
               'resolution': b.get('frameResolution', '1K'), 'output_format': 'png'}
-    use = [urls[i] for i in s.get('refIdx', range(len(urls))) if i < len(urls)]
+    use = [urls[i] for i in idx]
     if use:
         params['image_input'] = use
     rates = model['cost']['rates']
@@ -417,10 +543,10 @@ def start_clip(b, s, mode):
     model = model_by_id(mk)
     frame_url = board_file_url(b, s['frame'], 'frame')
     if mk == 'veo3':
-        params = {'prompt': s['motion'], 'model': 'veo3_fast', 'imageUrls': [frame_url],
+        params = {'prompt': clip_prompt(b, s), 'model': 'veo3_fast', 'imageUrls': [frame_url],
                   'aspectRatio': b.get('aspect', '9:16')}
     else:
-        params = {'prompt': s['motion'], 'image_urls': [frame_url], 'duration': str(clip_seconds(s, mk)),
+        params = {'prompt': clip_prompt(b, s), 'image_urls': [frame_url], 'duration': str(clip_seconds(s, mk)),
                   'aspect_ratio': b.get('aspect', '9:16'), 'mode': mode, 'sound': bool(s.get('sound'))}
     job = create_job(model, params, {'board': b['id'], 'scene': s['id'], 'role': 'clip'},
                      est=clip_cost(b, s, mode))
@@ -488,14 +614,45 @@ def board_on_job(job):
         else:
             s[key + 'Status'] = 'failed'
             s[key + 'Error'] = job.get('error')
+        if role == 'clip':
+            i = b['scenes'].index(s)
+            nxt = b['scenes'][i + 1] if i + 1 < len(b['scenes']) else None
+            if nxt and nxt.get('fromPrev') and nxt.get('clipStatus') == 'waiting':
+                if ok:
+                    try:
+                        nxt['frame'] = last_frame(b, s)
+                        nxt.setdefault('frameVersions', []).append(nxt['frame'])
+                        nxt['frameStatus'] = 'done'
+                        start_clip(b, nxt, b.get('video', {}).get('mode', 'std'))
+                    except Exception as e:
+                        nxt['clipStatus'] = 'failed'
+                        nxt['clipError'] = 'Could not hand off the last frame: ' + str(e)[:200]
+                else:
+                    nxt['clipStatus'] = 'failed'
+                    nxt['clipError'] = f"Waits on scene {s['n']}, which failed"
         if role == 'clip' and b.get('status') == 'rendering':
             live = [x for x in b['scenes'] if not x.get('still')]
             if all(x.get('clipStatus') == 'done' for x in live):
                 b['status'] = 'assembling'
                 threading.Thread(target=assemble_safe, args=(b['id'],), daemon=True).start()
-            elif not any(x.get('clipStatus') == 'running' for x in live):
+            elif not any(x.get('clipStatus') in ('running', 'waiting') for x in live):
                 b['status'] = 'clips-failed'
         save_board(b)
+
+
+def last_frame(b, s):
+    """Exact-frame handoff: the next clip starts where this one actually ended."""
+    import subprocess
+    ff = ffmpeg_bin()
+    if not ff:
+        raise RuntimeError('ffmpeg not found')
+    d = board_dir(b['id'])
+    name = f"{s['id']}_lastframe.png"
+    p = subprocess.run([ff, '-y', '-v', 'error', '-sseof', '-0.1', '-i', s['clip'], '-frames:v', '1', '-vf', "scale='min(iw,1080)':-2", '-update', '1', name],
+                       cwd=d, capture_output=True, text=True, creationflags=NO_WINDOW)
+    if p.returncode != 0 or not os.path.isfile(os.path.join(d, name)):
+        raise RuntimeError(p.stderr[-300:])
+    return name
 
 
 def copy(src, dst):
@@ -587,7 +744,7 @@ def assemble(bid):
     args += ['-filter_complex', ';'.join(filt), '-map', vout] + amap + [
         '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
         '-t', str(total), out]
-    p = subprocess.run(args, cwd=d, capture_output=True, text=True, creationflags=0x08000000)
+    p = subprocess.run(args, cwd=d, capture_output=True, text=True, creationflags=NO_WINDOW)
     if p.returncode != 0:
         raise RuntimeError(p.stderr[-800:])
     dl = os.path.join(OUT, f"{time.strftime('%Y%m%d-%H%M%S')}_{slug(b['title'], 40)}_final.mp4")
@@ -630,8 +787,8 @@ def poller():
 
 
 SCENE_FIELDS = {'line', 'caption', 'picture', 'motion', 'note', 'start', 'end', 'sound', 'still', 'clipModel',
-                'noCaption', 'clipOffset', 'tags', 'refIdx'}
-BOARD_FIELDS = {'title', 'subtitle', 'style', 'note', 'captions', 'frameResolution'}
+                'noCaption', 'clipOffset', 'tags', 'refIdx', 'lock', 'fromPrev'}
+BOARD_FIELDS = {'title', 'subtitle', 'style', 'note', 'captions', 'frameResolution', 'clipLock'}
 
 
 def board_create(spec):
@@ -644,7 +801,7 @@ def board_create(spec):
         src = r['path']
         dst = f"ref{i + 1}_{re.sub(r'[^\w.-]+', '_', os.path.basename(src))[-50:]}"
         copy(src, os.path.join(d, dst))
-        refs.append({'label': r.get('label', ''), 'file': dst})
+        refs.append({'label': r.get('label', ''), 'file': dst, 'role': r.get('role', ''), 'lock': r.get('lock')})
     scenes = []
     for i, s in enumerate(spec['scenes']):
         s = dict(s)
@@ -659,6 +816,7 @@ def board_create(spec):
          'frameModel': spec.get('frameModel', 'nano-banana-2'), 'frameResolution': spec.get('frameResolution', '1K'),
          'video': spec.get('video', {'model': 'kling3', 'mode': 'std'}), 'captions': spec.get('captions', True),
          'song': spec.get('song'), 'audio': spec.get('audio'), 'endcard': spec.get('endcard'),
+         'clipLock': spec.get('clipLock', CLIP_LOCK),
          'scenes': scenes, 'status': 'draft', 'created': time.time(), 'frameCredits': 0, 'log': []}
     save_board(b)
     return b
@@ -688,6 +846,8 @@ def board_action(bid, action, req):
             start_frame(b, scene_of(b, req['scene']))
         elif action == 'frames':
             for s in b['scenes']:
+                if s.get('fromPrev'):
+                    continue  # its start frame is the previous clip's last frame
                 if req.get('all') or s.get('frameStatus') in ('none', 'failed', None):
                     start_frame(b, s)
                     save_board(b)
@@ -697,7 +857,7 @@ def board_action(bid, action, req):
         elif action == 'render':
             mode = req.get('mode') or b.get('video', {}).get('mode', 'std')
             b.setdefault('video', {})['mode'] = mode
-            missing = [s['n'] for s in b['scenes'] if not s.get('still') and not s.get('frame')]
+            missing = [s['n'] for s in b['scenes'] if not s.get('frame') and not s.get('fromPrev')]
             if missing:
                 raise RuntimeError('These scenes have no frame yet: ' + ', '.join(map(str, missing)))
             b['status'] = 'rendering'
@@ -705,6 +865,9 @@ def board_action(bid, action, req):
             started = 0
             for s in b['scenes']:
                 if s.get('still') or (s.get('clipStatus') in ('done', 'running') and not req.get('fresh')):
+                    continue
+                if s.get('fromPrev'):
+                    s['clipStatus'] = 'waiting'  # starts when the previous clip lands
                     continue
                 start_clip(b, s, mode)
                 started += 1
@@ -789,9 +952,16 @@ class H(BaseHTTPRequestHandler):
                 return self.serve_file(os.path.join(UPLOADS, os.path.basename(urllib.parse.unquote(p))))
             if p == '/api/models':
                 return self.send_json(models())
+            if p == '/api/presets':
+                return self.send_json(load(os.path.join(ROOT, 'presets.json'), {}))
             if p == '/api/jobs':
                 with LOCK:
                     return self.send_json(load(JOBS_FILE, []))
+            m = re.match(r'^/api/jobs/([\w-]+)$', p)
+            if m:
+                with LOCK:
+                    j = next((x for x in load(JOBS_FILE, []) if x['id'] == m.group(1)), None)
+                return self.send_json(j) if j else self.send_json({'error': 'no such job'}, 404)
             if p == '/api/assets':
                 with LOCK:
                     return self.send_json(load(ASSETS_FILE, []))
@@ -813,6 +983,11 @@ class H(BaseHTTPRequestHandler):
             m = re.match(r'^/boards/([\w-]+)/([^/]+)$', p)
             if m:
                 return self.serve_file(os.path.join(board_dir(m.group(1)), os.path.basename(urllib.parse.unquote(m.group(2)))))
+            if p == '/api/health':
+                return self.send_json({'ok': True, 'version': VERSION, 'python': sys.version.split()[0],
+                                       'keyPresent': bool(kie_key()), 'ffmpeg': ffmpeg_bin(),
+                                       'ffprobe': ffmpeg_bin('ffprobe'), 'outputDir': OUT,
+                                       'models': len(models()['models'])})
             if p == '/api/credits':
                 r = http('GET', API + '/api/v1/chat/credit', timeout=30)
                 return self.send_json({'credits': r.get('data')})
@@ -829,6 +1004,12 @@ class H(BaseHTTPRequestHandler):
                 return self.upload()
             if p == '/api/generate':
                 return self.generate()
+            if p == '/api/estimate':
+                req = json.loads(self.body() or b'{}')
+                model = model_by_id(req.get('model'))
+                if not model:
+                    return self.send_json({'error': 'unknown model'}, 400)
+                return self.send_json(estimate(model, resolve_assets(model, req.get('params') or {})))
             if p == '/api/assets/delete':
                 req = json.loads(self.body() or b'{}')
                 with LOCK:
@@ -844,7 +1025,7 @@ class H(BaseHTTPRequestHandler):
             if p == '/api/assets/from-output':
                 return self.asset_from_output()
             if p == '/api/open-folder':
-                os.startfile(OUT)
+                open_folder(OUT)
                 return self.send_json({'ok': True})
             if p == '/api/boards/create':
                 return self.send_json(board_create(json.loads(self.body() or b'{}')))
@@ -872,6 +1053,8 @@ class H(BaseHTTPRequestHandler):
             dur = float(self.headers.get('X-Duration') or 0) or None
         except ValueError:
             dur = None
+        if not dur and kind in ('video', 'audio'):
+            dur = probe_duration(path)
         a = {'id': aid, 'name': name, 'local': '/uploads/' + local, 'url': url, 'kind': kind,
              'mime': mime, 'size': len(raw), 'added': time.time(), 'duration': dur,
              'uploaded': time.time()}
@@ -894,9 +1077,10 @@ class H(BaseHTTPRequestHandler):
         with open(src, 'rb') as a, open(dst, 'wb') as b:
             b.write(a.read())
         url = req.get('remote') or upload_to_kie(dst, local, mime)
-        kind = 'video' if mime.startswith('video') else 'image'
+        kind = 'video' if mime.startswith('video') else 'audio' if mime.startswith('audio') else 'image'
         a = {'id': aid, 'name': fname, 'local': '/uploads/' + local, 'url': url, 'kind': kind,
-             'mime': mime, 'size': os.path.getsize(dst), 'added': time.time()}
+             'mime': mime, 'size': os.path.getsize(dst), 'added': time.time(), 'uploaded': time.time(),
+             'duration': probe_duration(dst) if kind in ('video', 'audio') else None}
         with LOCK:
             assets = load(ASSETS_FILE, [])
             assets.insert(0, a)
@@ -941,7 +1125,7 @@ class H(BaseHTTPRequestHandler):
                    if p.get('required') and params.get(p['name']) in (None, '', [])]
         if missing:
             return self.send_json({'error': 'Fill in: ' + ', '.join(missing)}, 400)
-        params = self.refresh_stale_urls(params)
+        params = self.refresh_stale_urls(resolve_assets(model, params))
         try:
             job = create_job(model, params, est=req.get('estCredits'), thumbs=req.get('thumbs'))
         except RuntimeError as e:

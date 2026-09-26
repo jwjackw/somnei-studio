@@ -277,3 +277,12 @@ a.ghost{text-decoration:none;color:inherit;display:inline-flex;align-items:cente
 .bbar{position:fixed;left:260px;right:0;bottom:0;background:var(--sheet);border-top:1px solid var(--rule);padding:12px 36px;display:flex;align-items:center;gap:18px;z-index:20}
 .bbar-note{margin:0 0 0 auto;color:var(--muted);font-size:12px;text-align:right;max-width:52ch}
 @media (max-width:900px){.boards{grid-template-columns:1fr}.board-rail{display:none}.bbar{left:0}.board-main{padding:20px 16px 160px}}
+
+/* preset chips under the prompt */
+.presets{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.chips-l{font-size:12px;font-weight:600;color:var(--muted);width:72px;flex:0 0 auto}
+.chip-b{border:1px solid var(--rule);background:var(--sheet);border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer}
+.chip-b:hover{border-color:var(--ink)}
+.chip-b[aria-pressed="true"]{background:var(--peach-wash);border-color:var(--peach-deep);color:var(--peach-deep)}
+.chip-b.recipe{border-style:dashed}

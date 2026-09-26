@@ -1,0 +1,15 @@
+{
+  "name": "somnei-studio",
+  "owner": {
+    "name": "Jack Wang",
+    "url": "https://github.com/jwjackw"
+  },
+  "plugins": [
+    {
+      "name": "somnei-studio",
+      "source": "./",
+      "description": "Generate video, image and audio ads through kie.ai and run approve-first storyboards, via Somnei Studio's CLI and MCP server.",
+      "version": "0.3.0"
+    }
+  ]
+}

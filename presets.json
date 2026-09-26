@@ -1,0 +1,45 @@
+{
+  "camera": [
+    {"name": "Dolly in", "text": "slow smooth dolly in toward the subject, steady gimbal"},
+    {"name": "Dolly out", "text": "slow dolly out revealing the full scene"},
+    {"name": "Crash zoom", "text": "sudden fast crash zoom into the subject's face, snappy and punchy"},
+    {"name": "Orbit", "text": "camera orbits 180 degrees around the subject at eye level, subject stays centered"},
+    {"name": "360 spin", "text": "full 360 degree orbit around the product, clean continuous motion"},
+    {"name": "Handheld", "text": "handheld phone camera, subtle natural shake, feels filmed by a friend"},
+    {"name": "Selfie", "text": "front camera selfie framing, arm's length, the person talks straight into the lens"},
+    {"name": "Push in close up", "text": "gentle push in from medium shot to tight close up"},
+    {"name": "Top down", "text": "overhead top down shot looking straight down, flat lay composition"},
+    {"name": "Low angle", "text": "low angle hero shot looking up at the subject, makes it feel powerful"},
+    {"name": "Whip pan", "text": "fast whip pan transition with motion blur into the next moment"},
+    {"name": "Tracking", "text": "camera tracks alongside the subject as they walk, matched speed"},
+    {"name": "Tilt reveal", "text": "slow tilt up from the product to the person's face"},
+    {"name": "Rack focus", "text": "rack focus from the foreground product to the person behind it"},
+    {"name": "FPV fly through", "text": "fpv drone flying fast and low through the space, swooping motion"},
+    {"name": "Bullet time", "text": "frozen moment bullet time, camera sweeps around while the action is suspended"},
+    {"name": "Static tripod", "text": "locked off static tripod shot, no camera movement"},
+    {"name": "Macro", "text": "extreme macro close up, shallow depth of field, fine texture detail"}
+  ],
+  "look": [
+    {"name": "UGC phone", "text": "shot on iphone, natural window light, real home setting, unpolished and authentic"},
+    {"name": "Studio product", "text": "clean studio product shot, seamless backdrop, soft box lighting, crisp reflections"},
+    {"name": "Golden hour", "text": "warm golden hour sunlight, long soft shadows, gentle lens flare"},
+    {"name": "Bathroom morning", "text": "bright modern bathroom, morning light, mirror and marble counter"},
+    {"name": "Cinematic", "text": "cinematic 35mm film look, shallow depth of field, subtle grain, moody contrast"},
+    {"name": "Pixar 3D", "text": "stylized 3d animated film look, expressive characters, soft global illumination"},
+    {"name": "Night neon", "text": "night scene, neon signs, wet reflective street, cool blue and magenta tones"}
+  ],
+  "recipes": [
+    {"name": "UGC testimonial", "kind": "video", "model": "veo3",
+     "prompt": "A relatable woman in her late 20s sits on her bed in soft morning light, holding [PRODUCT] up to the front camera. She says: \"[LINE]\" Natural, candid delivery, small smile, handheld selfie framing."},
+    {"name": "Problem, then product", "kind": "video", "model": "kling3",
+     "prompt": "Start on a frustrated close up of [PROBLEM], then the person picks up [PRODUCT] and their expression turns to relief. Handheld phone camera, real home setting."},
+    {"name": "Product hero orbit", "kind": "video", "model": "kling3",
+     "prompt": "[PRODUCT] stands on a clean pedestal, camera orbits 180 degrees around it, soft studio light sweeps across the surface, subtle floating dust particles."},
+    {"name": "Unboxing", "kind": "video", "model": "kling3",
+     "prompt": "Top down shot of hands opening a pink box and lifting out [PRODUCT], tissue paper, satisfying slow reveal, bright natural light."},
+    {"name": "Before and after split", "kind": "image", "model": "nano-banana-2",
+     "prompt": "vertical split image, left half labeled before shows [PROBLEM], right half labeled after shows the smooth result after using [PRODUCT], same person, same lighting."},
+    {"name": "Ad static", "kind": "image", "model": "nano-banana-2",
+     "prompt": "flat lay of [PRODUCT] on a soft pink background, bold white headline reading \"[LINE]\" in the upper third, leave the top 12 percent empty, clean premium ad layout"}
+  ]
+}

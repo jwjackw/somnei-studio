@@ -60,16 +60,16 @@
     if (busy()) B.timer = setTimeout(() => refresh(false), 5000);
   }
   const busy = () => { const b = B.board; return b && (['rendering', 'assembling'].includes(b.status) ||
-    b.scenes.some(s => s.frameStatus === 'running' || s.clipStatus === 'running') || b.song?.status === 'running'); };
+    b.scenes.some(s => s.frameStatus === 'running' || ['running', 'waiting'].includes(s.clipStatus)) || b.song?.status === 'running'); };
 
   /* ---------------------------------------------------------- render */
   function sceneMedia(s) {
-    const st = s.clipStatus === 'running' ? 'Making clip' : s.frameStatus === 'running' ? 'Drawing frame' : '';
+    const st = s.clipStatus === 'running' ? 'Making clip' : s.clipStatus === 'waiting' ? `Waiting for scene ${s.n - 1}` : s.frameStatus === 'running' ? 'Drawing frame' : '';
     const err = s.clipStatus === 'failed' ? s.clipError : s.frameStatus === 'failed' ? s.frameError : '';
     let inner = '';
     if (s.clip && s.clipStatus !== 'running') inner = `<video src="${media(s.clip)}" poster="${s.frame ? media(s.frame) : ''}" muted loop playsinline preload="metadata"></video><span class="sc-badge">clip</span>`;
     else if (s.frame) inner = `<img src="${media(s.frame)}" alt="Scene ${s.n} frame">`;
-    else inner = `<div class="sc-none">No frame yet</div>`;
+    else inner = `<div class="sc-none">${s.fromPrev ? `Starts from scene ${s.n - 1}'s last frame` : 'No frame yet'}</div>`;
     if (st) inner += `<div class="sc-busy"><span class="dot"></span>${st}</div>`;
     if (err) inner += `<div class="sc-err">${esc(err)}</div>`;
     return inner;
@@ -107,7 +107,7 @@
         <label class="sc-lbl" for="note-${s.id}">Note for Claude</label>
         <textarea class="ed ed-note" id="note-${s.id}" data-bf="note" rows="1" placeholder="e.g. make her look more annoyed">${esc(s.note || '')}</textarea>
         <div class="sc-acts">
-          <button type="button" class="ghost small" data-bframe="${s.id}" ${s.frameStatus === 'running' ? 'disabled' : ''}>${s.frame ? 'Redo frame' : 'Draw frame'} · ${fc} credits</button>
+          ${s.fromPrev ? '' : `<button type="button" class="ghost small" data-bframe="${s.id}" ${s.frameStatus === 'running' ? 'disabled' : ''}>${s.frame ? 'Redo frame' : 'Draw frame'} · ${fc} credits</button>`}
           ${s.clip || s.clipStatus === 'failed' ? `<button type="button" class="ghost small" data-bclip="${s.id}" ${s.clipStatus === 'running' ? 'disabled' : ''}>Redo clip</button>` : ''}
         </div>
       </div></article>`;
@@ -152,7 +152,7 @@
   function actionBar(b) {
     const mode = b.video?.mode || 'std';
     const cost = b._costs[mode];
-    const noFrame = b.scenes.filter(s => !s.frame).length;
+    const noFrame = b.scenes.filter(s => !s.frame && !s.fromPrev).length;
     const running = b.status === 'rendering' || b.status === 'assembling';
     const remaining = b.scenes.filter(s => !s.still && s.clipStatus !== 'done').reduce((a, s) => a + clipCostLocal(s, mode), 0);
     let label, dis = false, note;

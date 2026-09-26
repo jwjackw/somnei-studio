@@ -135,7 +135,24 @@
     }
     if (neg) h += `<div class="prompt-box neg"><label class="plabel" for="neg">${esc(neg.label)} (optional)</label>
         <textarea id="neg" data-p="${neg.name}" placeholder="Things you don't want to see, e.g. blurry, extra fingers, text">${esc(v[neg.name] || '')}</textarea></div>`;
+    if (pr && S.presets) {
+      const v2 = vals(); const cur = v2[pr.name] || '';
+      const chips = (list, label) => `<div class="chips" role="group" aria-label="${label}"><span class="chips-l">${label}</span>${
+        list.map((c, i) => `<button type="button" class="chip-b" data-chip="${esc(c.text)}" aria-pressed="${cur.includes(c.text)}" title="${esc(c.text)}">${esc(c.name)}</button>`).join('')}</div>`;
+      const moving = ['video', 'edit'].includes(S.model.kind);
+      const rec = (S.presets.recipes || []).filter(r => r.kind === (moving ? 'video' : 'image'));
+      h += `<div class="presets">${moving ? chips(S.presets.camera || [], 'Camera') : ''}${['video', 'edit', 'image'].includes(S.model.kind) ? chips(S.presets.look || [], 'Look') : ''}
+        ${rec.length ? `<div class="chips"><span class="chips-l">Start from</span>${rec.map(r => `<button type="button" class="chip-b recipe" data-recipe="${esc(r.name)}">${esc(r.name)}</button>`).join('')}</div>` : ''}</div>`;
+    }
     $('#promptSlot').innerHTML = h;
+  }
+  function togglePhrase(text) {
+    const pr = S.model.params.find(p => p.control === 'prompt'); if (!pr) return;
+    const v = vals(); let cur = v[pr.name] || '';
+    if (cur.includes(text)) cur = cur.replace(', ' + text, '').replace(text + ', ', '').replace(text, '').trim();
+    else cur = cur.trim() ? cur.trim().replace(/[.,]?$/, '') + ', ' + text : text;
+    v[pr.name] = cur; save(); renderPrompt(); updateGo();
+    const t = $('#prompt'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
   }
 
   /* ------------------------------------------------------------ media slots */
@@ -340,6 +357,11 @@
   document.addEventListener('click', async e => {
     const t = e.target.closest('button, [data-slot], .asset, a');
     if (!t) return;
+    if (t.dataset.chip !== undefined) return togglePhrase(t.dataset.chip);
+    if (t.dataset.recipe) { const r = S.presets.recipes.find(x => x.name === t.dataset.recipe);
+      if (r.model !== S.model.key && S.catalog.models.some(m => m.key === r.model)) selectModel(r.model);
+      const pr = S.model.params.find(p => p.control === 'prompt'); vals()[pr.name] = r.prompt; save(); renderPrompt(); updateGo();
+      toast('Template loaded. Replace the [BRACKETED] parts.'); return; }
     if (t.dataset.k) { S.kind = t.dataset.k; const first = S.catalog.models.find(m => m.kind === S.kind); selectModel(first.key); return; }
     if (t.dataset.m) return selectModel(t.dataset.m);
     if (t.dataset.p && t.dataset.v !== undefined) {
@@ -417,7 +439,7 @@
   /* ------------------------------------------------------------ boot */
   (async () => {
     try {
-      [S.catalog, S.assets, S.jobs] = await Promise.all([api('/api/models'), api('/api/assets'), api('/api/jobs')]);
+      [S.catalog, S.assets, S.jobs, S.presets] = await Promise.all([api('/api/models'), api('/api/assets'), api('/api/jobs'), api('/api/presets').catch(() => null)]);
     } catch (e) { toast('Could not reach the studio server: ' + e.message, true); return; }
     const saved = localStorage.getItem('studio.model');
     selectModel(S.catalog.models.some(m => m.key === saved) ? saved : S.catalog.models[0].key);

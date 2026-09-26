@@ -1,0 +1,13 @@
+{
+  "name": "somnei-studio",
+  "version": "0.3.0",
+  "description": "Local Higgsfield-style ad studio on kie.ai: 25 video, image, avatar and audio models plus an approve-before-you-spend storyboard pipeline. Skills, CLI and MCP server included.",
+  "author": {
+    "name": "Jack Wang",
+    "url": "https://github.com/jwjackw"
+  },
+  "homepage": "https://github.com/jwjackw/somnei-studio",
+  "repository": "https://github.com/jwjackw/somnei-studio",
+  "license": "MIT",
+  "keywords": ["kie-ai", "video-generation", "image-generation", "ugc", "ad-creative", "storyboard", "veo", "kling", "seedance", "mcp"]
+}
