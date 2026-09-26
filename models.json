@@ -1,0 +1,2135 @@
+{
+ "pricesCheckedOn": "2026-09-25",
+ "kinds": [
+  {
+   "key": "video",
+   "label": "Make a video"
+  },
+  {
+   "key": "edit",
+   "label": "Edit a video"
+  },
+  {
+   "key": "avatar",
+   "label": "Talking avatar"
+  },
+  {
+   "key": "audio",
+   "label": "Music and voice"
+  },
+  {
+   "key": "image",
+   "label": "Make an image"
+  },
+  {
+   "key": "upscale",
+   "label": "Upscale"
+  }
+ ],
+ "models": [
+  {
+   "key": "veo3",
+   "name": "Veo 3",
+   "kind": "video",
+   "blurb": "Google's top model. Real speech, sound and lip sync in one pass. Best for UGC-style talking clips. 8 seconds.",
+   "create": {
+    "path": "/api/v1/veo/generate",
+    "bodyStyle": "flat"
+   },
+   "poll": "custom",
+   "pollPath": "/api/v1/veo/record-info?taskId={taskId}",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 2000,
+     "desc": "Describe the shot, the person, and put any spoken lines in quotes."
+    },
+    {
+     "name": "model",
+     "label": "Quality",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "veo3_fast",
+      "veo3"
+     ],
+     "enumLabels": [
+      "Fast",
+      "Quality"
+     ],
+     "default": "veo3_fast"
+    },
+    {
+     "name": "imageUrls",
+     "label": "Start frame",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 2,
+     "desc": "Optional. One image: the video grows from it. Two images: first is the start, second is the end."
+    },
+    {
+     "name": "aspectRatio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "16:9",
+      "Auto"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "enableTranslation",
+     "label": "Translate prompt to English",
+     "type": "boolean",
+     "default": true,
+     "advanced": true
+    },
+    {
+     "name": "enableFallback",
+     "label": "Retry on another model if blocked",
+     "type": "boolean",
+     "default": false,
+     "advanced": true,
+     "desc": "Helps when a prompt trips the content filter."
+    },
+    {
+     "name": "seeds",
+     "label": "Seed",
+     "type": "integer",
+     "min": 10000,
+     "max": 99999,
+     "advanced": true,
+     "desc": "Same seed + same settings gives a similar result."
+    },
+    {
+     "name": "watermark",
+     "label": "Watermark text",
+     "type": "string",
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "flat",
+    "by": [
+     "model"
+    ],
+    "rates": {
+     "veo3_fast": 60,
+     "veo3": 250
+    }
+   }
+  },
+  {
+   "key": "kling3",
+   "name": "Kling 3.0",
+   "kind": "video",
+   "blurb": "Strong motion and realism, 3 to 15 seconds. Optional native audio. Give it a start frame (and end frame) or just a prompt.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "kling-3.0/video"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 5000,
+     "desc": "For dialogue use [Name, voice style]: \"line\"."
+    },
+    {
+     "name": "image_urls",
+     "label": "Start / end frame",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 2,
+     "desc": "Optional. First image is the start frame, second is the end frame."
+    },
+    {
+     "name": "duration",
+     "label": "Length",
+     "type": "string",
+     "control": "slider",
+     "min": 3,
+     "max": 15,
+     "step": 1,
+     "default": "5",
+     "unit": "s"
+    },
+    {
+     "name": "aspect_ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "16:9",
+      "1:1"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "mode",
+     "label": "Quality",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "std",
+      "pro"
+     ],
+     "enumLabels": [
+      "Standard 720p",
+      "Pro 1080p"
+     ],
+     "default": "std"
+    },
+    {
+     "name": "sound",
+     "label": "Generate sound",
+     "type": "boolean",
+     "default": false,
+     "desc": "Native audio. Costs more."
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "duration",
+    "by": [
+     "mode",
+     "sound"
+    ],
+    "rates": {
+     "std|false": 14,
+     "std|true": 20,
+     "pro|false": 18,
+     "pro|true": 27
+    }
+   }
+  },
+  {
+   "key": "seedance25",
+   "name": "Seedance 2.5",
+   "kind": "video",
+   "blurb": "ByteDance's newest. Takes first and last frames, or up to several reference images, videos and audio to copy a look or motion.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "bytedance/seedance-2-5"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true
+    },
+    {
+     "name": "first_frame_url",
+     "label": "First frame",
+     "type": "string",
+     "media": "image",
+     "desc": "Optional. Use frames OR references, not both."
+    },
+    {
+     "name": "last_frame_url",
+     "label": "Last frame",
+     "type": "string",
+     "media": "image",
+     "desc": "Needs a first frame."
+    },
+    {
+     "name": "reference_image_urls",
+     "label": "Reference images",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 9
+    },
+    {
+     "name": "reference_video_urls",
+     "label": "Reference videos",
+     "type": "string",
+     "media": "video",
+     "multiple": true,
+     "maxItems": 3,
+     "desc": "Copy motion or camera work from a clip. Cheaper per second."
+    },
+    {
+     "name": "reference_audio_urls",
+     "label": "Reference audio",
+     "type": "string",
+     "media": "audio",
+     "multiple": true,
+     "maxItems": 3
+    },
+    {
+     "name": "duration",
+     "label": "Length",
+     "type": "integer",
+     "control": "slider",
+     "min": 4,
+     "max": 15,
+     "step": 1,
+     "default": 5,
+     "unit": "s"
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "480p",
+      "720p",
+      "1080p"
+     ],
+     "default": "720p"
+    },
+    {
+     "name": "aspect_ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "16:9",
+      "1:1",
+      "4:3",
+      "3:4"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "generate_audio",
+     "label": "Generate sound",
+     "type": "boolean",
+     "default": false
+    },
+    {
+     "name": "return_last_frame",
+     "label": "Also return the last frame",
+     "type": "boolean",
+     "default": false,
+     "advanced": true,
+     "desc": "Handy for chaining clips into a longer ad."
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "duration",
+    "by": [
+     "resolution",
+     "@has:reference_video_urls"
+    ],
+    "rates": {
+     "480p|false": 28,
+     "480p|true": 17,
+     "720p|false": 63,
+     "720p|true": 38,
+     "1080p|false": 158,
+     "1080p|true": 95
+    }
+   }
+  },
+  {
+   "key": "wan27-i2v",
+   "name": "Wan 2.7",
+   "kind": "video",
+   "blurb": "Good value. Animate from a first frame (and optional last frame), or from a prompt alone. 2 to 15 seconds.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "wan/2-7-image-to-video",
+    "modelIfEmpty": {
+     "param": "first_frame_url",
+     "model": "wan/2-7-text-to-video"
+    }
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 5000
+    },
+    {
+     "name": "negative_prompt",
+     "label": "Avoid",
+     "type": "string",
+     "control": "negative",
+     "max": 500
+    },
+    {
+     "name": "first_frame_url",
+     "label": "First frame",
+     "type": "string",
+     "media": "image",
+     "desc": "Leave empty to make it from the prompt only."
+    },
+    {
+     "name": "last_frame_url",
+     "label": "Last frame",
+     "type": "string",
+     "media": "image"
+    },
+    {
+     "name": "duration",
+     "label": "Length",
+     "type": "integer",
+     "control": "slider",
+     "min": 2,
+     "max": 15,
+     "step": 1,
+     "default": 5,
+     "unit": "s"
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "720p",
+      "1080p"
+     ],
+     "default": "720p"
+    },
+    {
+     "name": "ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "16:9",
+      "1:1",
+      "4:3",
+      "3:4"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "prompt_extend",
+     "label": "Let the model expand my prompt",
+     "type": "boolean",
+     "default": true,
+     "advanced": true
+    },
+    {
+     "name": "seed",
+     "label": "Seed",
+     "type": "integer",
+     "min": 0,
+     "max": 2147483647,
+     "advanced": true
+    },
+    {
+     "name": "watermark",
+     "label": "Watermark",
+     "type": "boolean",
+     "default": false,
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "duration",
+    "by": [
+     "resolution"
+    ],
+    "rates": {
+     "720p": 16,
+     "1080p": 24
+    }
+   }
+  },
+  {
+   "key": "wan27-r2v",
+   "name": "Wan 2.7 references",
+   "kind": "video",
+   "blurb": "Keep a person or product consistent: give up to 5 reference images or clips and describe the scene.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "wan/2-7-r2v"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 5000
+    },
+    {
+     "name": "negative_prompt",
+     "label": "Avoid",
+     "type": "string",
+     "control": "negative",
+     "max": 500
+    },
+    {
+     "name": "reference_image",
+     "label": "Reference images",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 5
+    },
+    {
+     "name": "reference_video",
+     "label": "Reference clips",
+     "type": "string",
+     "media": "video",
+     "multiple": true,
+     "maxItems": 5
+    },
+    {
+     "name": "first_frame",
+     "label": "First frame",
+     "type": "string",
+     "media": "image"
+    },
+    {
+     "name": "duration",
+     "label": "Length",
+     "type": "integer",
+     "control": "slider",
+     "min": 2,
+     "max": 15,
+     "step": 1,
+     "default": 5,
+     "unit": "s"
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "720p",
+      "1080p"
+     ],
+     "default": "720p"
+    },
+    {
+     "name": "ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "16:9",
+      "1:1",
+      "4:3",
+      "3:4"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "prompt_extend",
+     "label": "Let the model expand my prompt",
+     "type": "boolean",
+     "default": true,
+     "advanced": true
+    },
+    {
+     "name": "seed",
+     "label": "Seed",
+     "type": "integer",
+     "min": 0,
+     "max": 2147483647,
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "duration",
+    "by": [
+     "resolution"
+    ],
+    "rates": {
+     "720p": 16,
+     "1080p": 24
+    }
+   }
+  },
+  {
+   "key": "happyhorse-i2v",
+   "name": "HappyHorse",
+   "kind": "video",
+   "blurb": "Animate one image, or make it from a prompt. 3 to 15 seconds.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "happyhorse/image-to-video",
+    "modelIfEmpty": {
+     "param": "image_urls",
+     "model": "happyhorse/text-to-video"
+    }
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 5000
+    },
+    {
+     "name": "image_urls",
+     "label": "Start image",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 1,
+     "desc": "Leave empty to make it from the prompt only."
+    },
+    {
+     "name": "duration",
+     "label": "Length",
+     "type": "integer",
+     "control": "slider",
+     "min": 3,
+     "max": 15,
+     "step": 1,
+     "default": 5,
+     "unit": "s"
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "720p",
+      "1080p"
+     ],
+     "default": "720p"
+    },
+    {
+     "name": "aspect_ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "16:9",
+      "1:1",
+      "4:3",
+      "3:4"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "seed",
+     "label": "Seed",
+     "type": "integer",
+     "min": 0,
+     "max": 2147483647,
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "duration",
+    "by": [
+     "resolution"
+    ],
+    "rates": {
+     "720p": 28,
+     "1080p": 48
+    }
+   }
+  },
+  {
+   "key": "happyhorse-ref",
+   "name": "HappyHorse references",
+   "kind": "video",
+   "blurb": "Up to 9 reference images (person, product, setting) combined into one scene.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "happyhorse/reference-to-video"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 5000
+    },
+    {
+     "name": "reference_image",
+     "label": "Reference images",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 9,
+     "required": true
+    },
+    {
+     "name": "duration",
+     "label": "Length",
+     "type": "integer",
+     "control": "slider",
+     "min": 3,
+     "max": 15,
+     "step": 1,
+     "default": 5,
+     "unit": "s"
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "720p",
+      "1080p"
+     ],
+     "default": "720p"
+    },
+    {
+     "name": "aspect_ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "16:9",
+      "1:1",
+      "4:3",
+      "3:4"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "seed",
+     "label": "Seed",
+     "type": "integer",
+     "min": 0,
+     "max": 2147483647,
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "duration",
+    "by": [
+     "resolution"
+    ],
+    "rates": {
+     "720p": 28,
+     "1080p": 48
+    }
+   }
+  },
+  {
+   "key": "minimax-h3",
+   "name": "MiniMax H3",
+   "kind": "video",
+   "blurb": "Cheapest per second for realistic motion. Give a start frame, or a prompt alone. 4 to 15 seconds at 768p.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "minimax-h3/image-to-video",
+    "modelIfEmpty": {
+     "param": "first_frame_url",
+     "model": "minimax-h3/text-to-video"
+    },
+    "dropIfSet": {
+     "param": "first_frame_url",
+     "drop": [
+      "aspect_ratio"
+     ]
+    }
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true
+    },
+    {
+     "name": "first_frame_url",
+     "label": "First frame",
+     "type": "string",
+     "media": "image",
+     "desc": "With a first frame, the shape follows the image."
+    },
+    {
+     "name": "last_frame_url",
+     "label": "Last frame",
+     "type": "string",
+     "media": "image"
+    },
+    {
+     "name": "duration",
+     "label": "Length",
+     "type": "integer",
+     "control": "slider",
+     "min": 4,
+     "max": 15,
+     "step": 1,
+     "default": 6,
+     "unit": "s",
+     "required": true
+    },
+    {
+     "name": "aspect_ratio",
+     "label": "Shape (prompt only)",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "16:9",
+      "1:1",
+      "4:3",
+      "3:4",
+      "21:9"
+     ],
+     "default": "9:16"
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "duration",
+    "rate": 8
+   }
+  },
+  {
+   "key": "grok-i2v",
+   "name": "Grok Imagine",
+   "kind": "video",
+   "blurb": "Very cheap, fast, about 6 seconds. Good for quick tests. From one image (any shape) or a prompt (square or 2:3 only).",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "grok-imagine/image-to-video",
+    "modelIfEmpty": {
+     "param": "image_urls",
+     "model": "grok-imagine/text-to-video"
+    },
+    "dropIfSet": {
+     "param": "image_urls",
+     "drop": [
+      "aspect_ratio"
+     ]
+    }
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "max": 5000
+    },
+    {
+     "name": "image_urls",
+     "label": "Start image",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 1
+    },
+    {
+     "name": "aspect_ratio",
+     "label": "Shape (prompt only)",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "2:3",
+      "1:1",
+      "3:2"
+     ],
+     "default": "2:3"
+    },
+    {
+     "name": "mode",
+     "label": "Style",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "normal",
+      "fun"
+     ],
+     "enumLabels": [
+      "Normal",
+      "Fun"
+     ],
+     "default": "normal"
+    }
+   ],
+   "cost": {
+    "type": "flat",
+    "rate": 27,
+    "approx": true
+   }
+  },
+  {
+   "key": "omni",
+   "name": "Gemini Omni",
+   "kind": "video",
+   "blurb": "Google's multi-input model. Mix up to 7 images into one scene. 4, 6, 8 or 10 seconds, up to 4K.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "gemini-omni-video"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 20000
+    },
+    {
+     "name": "image_urls",
+     "label": "Images",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 7
+    },
+    {
+     "name": "duration",
+     "label": "Length",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "4",
+      "6",
+      "8",
+      "10"
+     ],
+     "enumLabels": [
+      "4s",
+      "6s",
+      "8s",
+      "10s"
+     ],
+     "default": "8"
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "720p",
+      "1080p",
+      "4k"
+     ],
+     "default": "1080p"
+    },
+    {
+     "name": "aspect_ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "16:9"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "seed",
+     "label": "Seed",
+     "type": "integer",
+     "min": 0,
+     "max": 2147483647,
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "flat",
+    "by": [
+     "duration",
+     "resolution"
+    ],
+    "rates": {
+     "4|720p": 63,
+     "6|720p": 84,
+     "8|720p": 105,
+     "10|720p": 126,
+     "4|1080p": 63,
+     "6|1080p": 84,
+     "8|1080p": 105,
+     "10|1080p": 126,
+     "4|4k": 147,
+     "6|4k": 168,
+     "8|4k": 189,
+     "10|4k": 210
+    }
+   }
+  },
+  {
+   "key": "wan27-edit",
+   "name": "Wan 2.7 video edit",
+   "kind": "edit",
+   "blurb": "Change an existing clip with words: swap the background, outfit, lighting or product. Optional style image.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "wan/2-7-videoedit"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "What to change",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 5000
+    },
+    {
+     "name": "video_url",
+     "label": "Video to edit",
+     "type": "string",
+     "media": "video",
+     "required": true
+    },
+    {
+     "name": "reference_image",
+     "label": "Style or object image",
+     "type": "string",
+     "media": "image"
+    },
+    {
+     "name": "duration",
+     "label": "Length",
+     "type": "integer",
+     "control": "slider",
+     "min": 2,
+     "max": 15,
+     "step": 1,
+     "default": 5,
+     "unit": "s"
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "720p",
+      "1080p"
+     ],
+     "default": "720p"
+    },
+    {
+     "name": "ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "16:9",
+      "1:1",
+      "4:3",
+      "3:4"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "audio_setting",
+     "label": "Audio",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "origin",
+      "auto"
+     ],
+     "enumLabels": [
+      "Keep original",
+      "Regenerate"
+     ],
+     "default": "origin"
+    },
+    {
+     "name": "negative_prompt",
+     "label": "Avoid",
+     "type": "string",
+     "control": "negative",
+     "max": 500,
+     "advanced": true
+    },
+    {
+     "name": "seed",
+     "label": "Seed",
+     "type": "integer",
+     "min": 0,
+     "max": 2147483647,
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "duration",
+    "by": [
+     "resolution"
+    ],
+    "rates": {
+     "720p": 16,
+     "1080p": 24
+    }
+   }
+  },
+  {
+   "key": "happyhorse-edit",
+   "name": "HappyHorse video edit",
+   "kind": "edit",
+   "blurb": "Edit a clip with words, with up to 5 reference images.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "happyhorse/video-edit"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "What to change",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 5000
+    },
+    {
+     "name": "video_url",
+     "label": "Video to edit",
+     "type": "string",
+     "media": "video",
+     "required": true
+    },
+    {
+     "name": "reference_image_edit",
+     "label": "Reference images",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 5
+    },
+    {
+     "name": "duration",
+     "label": "Length",
+     "type": "integer",
+     "control": "slider",
+     "min": 3,
+     "max": 15,
+     "step": 1,
+     "default": 5,
+     "unit": "s"
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "720p",
+      "1080p"
+     ],
+     "default": "720p"
+    },
+    {
+     "name": "aspect_ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "16:9",
+      "1:1",
+      "4:3",
+      "3:4"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "audio_setting",
+     "label": "Audio",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "origin",
+      "auto"
+     ],
+     "enumLabels": [
+      "Keep original",
+      "Regenerate"
+     ],
+     "default": "origin"
+    },
+    {
+     "name": "seed",
+     "label": "Seed",
+     "type": "integer",
+     "min": 0,
+     "max": 2147483647,
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "duration",
+    "by": [
+     "resolution"
+    ],
+    "rates": {
+     "720p": 28,
+     "1080p": 48
+    }
+   }
+  },
+  {
+   "key": "aleph",
+   "name": "Runway Aleph",
+   "kind": "edit",
+   "blurb": "Runway's video editor. Restyle, relight, add or remove objects in an existing clip.",
+   "create": {
+    "path": "/api/v1/aleph/generate",
+    "bodyStyle": "flat"
+   },
+   "poll": "custom",
+   "pollPath": "/api/v1/aleph/record-info?taskId={taskId}",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "What to change",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 1000
+    },
+    {
+     "name": "videoUrl",
+     "label": "Video to edit",
+     "type": "string",
+     "media": "video",
+     "required": true
+    },
+    {
+     "name": "referenceImage",
+     "label": "Style image",
+     "type": "string",
+     "media": "image"
+    },
+    {
+     "name": "aspectRatio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "16:9",
+      "1:1",
+      "4:3",
+      "3:4",
+      "21:9"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "seed",
+     "label": "Seed",
+     "type": "integer",
+     "min": 1,
+     "max": 999999,
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "flat",
+    "rate": 110
+   }
+  },
+  {
+   "key": "wan22-move",
+   "name": "Copy motion onto a person",
+   "kind": "edit",
+   "blurb": "Wan 2.2 Animate. Make the person in your image perform the moves from a reference clip (max 30s, 10MB).",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "wan/2-2-animate-move"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "image_url",
+     "label": "Person image",
+     "type": "string",
+     "media": "image",
+     "required": true
+    },
+    {
+     "name": "video_url",
+     "label": "Motion clip",
+     "type": "string",
+     "media": "video",
+     "required": true
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "480p",
+      "580p",
+      "720p"
+     ],
+     "default": "720p"
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "@duration:video_url",
+    "by": [
+     "resolution"
+    ],
+    "rates": {
+     "480p": 6,
+     "580p": 9.5,
+     "720p": 12.5
+    }
+   }
+  },
+  {
+   "key": "wan22-replace",
+   "name": "Swap a person into a clip",
+   "kind": "edit",
+   "blurb": "Wan 2.2 Animate. Replace the person in a clip with the one in your image, keeping the original motion.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "wan/2-2-animate-replace"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "video_url",
+     "label": "Original clip",
+     "type": "string",
+     "media": "video",
+     "required": true
+    },
+    {
+     "name": "image_url",
+     "label": "New person",
+     "type": "string",
+     "media": "image",
+     "required": true
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "480p",
+      "580p",
+      "720p"
+     ],
+     "default": "720p"
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "@duration:video_url",
+    "by": [
+     "resolution"
+    ],
+    "rates": {
+     "480p": 6,
+     "580p": 9.5,
+     "720p": 12.5
+    }
+   }
+  },
+  {
+   "key": "omnihuman",
+   "name": "OmniHuman 1.5",
+   "kind": "avatar",
+   "blurb": "Most lifelike talking avatar. A photo plus a voice track (under 60s) becomes a talking-head clip.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "omnihuman-1-5"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "image_url",
+     "label": "Face photo",
+     "type": "string",
+     "media": "image",
+     "required": true
+    },
+    {
+     "name": "audio_url",
+     "label": "Voice track",
+     "type": "string",
+     "media": "audio",
+     "required": true,
+     "desc": "Under 60 seconds."
+    },
+    {
+     "name": "prompt",
+     "label": "Direction",
+     "type": "string",
+     "control": "prompt",
+     "max": 1000,
+     "desc": "Optional: expression, gestures, camera."
+    },
+    {
+     "name": "output_resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "720",
+      "1080"
+     ],
+     "enumLabels": [
+      "720p",
+      "1080p"
+     ],
+     "default": "1080"
+    },
+    {
+     "name": "pe_fast_mode",
+     "label": "Fast mode",
+     "type": "boolean",
+     "default": false,
+     "advanced": true
+    },
+    {
+     "name": "seed",
+     "label": "Seed",
+     "type": "integer",
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "@duration:audio_url",
+    "rate": 27
+   }
+  },
+  {
+   "key": "kling-avatar",
+   "name": "Kling Avatar",
+   "kind": "avatar",
+   "blurb": "Cheaper talking avatar, up to 15 seconds. Photo plus voice track.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "kling/v1-avatar-standard",
+    "modelByParam": {
+     "param": "tier",
+     "map": {
+      "standard": "kling/v1-avatar-standard",
+      "pro": "kling/ai-avatar-v1-pro"
+     }
+    }
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "image_url",
+     "label": "Face photo",
+     "type": "string",
+     "media": "image",
+     "required": true
+    },
+    {
+     "name": "audio_url",
+     "label": "Voice track",
+     "type": "string",
+     "media": "audio",
+     "required": true
+    },
+    {
+     "name": "prompt",
+     "label": "Direction",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 1500,
+     "desc": "Emotion, expression, scene."
+    },
+    {
+     "name": "tier",
+     "label": "Quality",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "standard",
+      "pro"
+     ],
+     "enumLabels": [
+      "Standard 720p",
+      "Pro 1080p"
+     ],
+     "default": "standard",
+     "local": true
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "@duration:audio_url",
+    "by": [
+     "tier"
+    ],
+    "rates": {
+     "standard": 8,
+     "pro": 16
+    }
+   }
+  },
+  {
+   "key": "infinitalk",
+   "name": "InfiniTalk",
+   "kind": "avatar",
+   "blurb": "Lip sync a photo to a voice track at 480p or 720p.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "infinitalk/from-audio"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "image_url",
+     "label": "Face photo",
+     "type": "string",
+     "media": "image",
+     "required": true
+    },
+    {
+     "name": "audio_url",
+     "label": "Voice track",
+     "type": "string",
+     "media": "audio",
+     "required": true
+    },
+    {
+     "name": "prompt",
+     "label": "Direction",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 1500
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "480p",
+      "720p"
+     ],
+     "default": "720p"
+    },
+    {
+     "name": "seed",
+     "label": "Seed",
+     "type": "integer",
+     "min": 10000,
+     "max": 1000000,
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "per_second",
+    "sec": "@duration:audio_url",
+    "by": [
+     "resolution"
+    ],
+    "rates": {
+     "480p": 3,
+     "720p": 12
+    }
+   }
+  },
+  {
+   "key": "nano-banana-2",
+   "name": "Nano Banana 2",
+   "kind": "image",
+   "blurb": "Best for ad statics and first frames. Renders text accurately and edits from up to 14 reference images.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "nano-banana-2"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 5000,
+     "desc": "Keep instructions lowercase. Capitalised words tend to get rendered as text."
+    },
+    {
+     "name": "image_input",
+     "label": "Reference images",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 14
+    },
+    {
+     "name": "aspect_ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "4:5",
+      "1:1",
+      "16:9",
+      "auto"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "1K",
+      "2K",
+      "4K"
+     ],
+     "default": "2K"
+    },
+    {
+     "name": "output_format",
+     "label": "Format",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "png",
+      "jpg"
+     ],
+     "default": "png",
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "flat",
+    "by": [
+     "resolution"
+    ],
+    "rates": {
+     "1K": 8,
+     "2K": 12,
+     "4K": 18
+    }
+   }
+  },
+  {
+   "key": "gpt-image-2",
+   "name": "GPT Image 2",
+   "kind": "image",
+   "blurb": "OpenAI's image model. Strong at following long, detailed prompts and at editing up to 16 references.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "gpt-image-2-text-to-image",
+    "modelIfSet": {
+     "param": "input_urls",
+     "model": "gpt-image-2-image-to-image"
+    }
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 20000
+    },
+    {
+     "name": "input_urls",
+     "label": "Reference images",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 16
+    },
+    {
+     "name": "aspect_ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "1:1",
+      "3:4",
+      "16:9",
+      "auto"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "1K",
+      "2K",
+      "4K"
+     ],
+     "default": "2K"
+    }
+   ],
+   "cost": {
+    "type": "flat",
+    "by": [
+     "resolution"
+    ],
+    "rates": {
+     "1K": 6,
+     "2K": 10,
+     "4K": 16
+    }
+   }
+  },
+  {
+   "key": "seedream5",
+   "name": "Seedream 5 Pro",
+   "kind": "image",
+   "blurb": "ByteDance's photoreal model. Good skin and product texture. Up to 10 reference images.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "seedream/5-pro-text-to-image",
+    "modelIfSet": {
+     "param": "image_urls",
+     "model": "seedream/5-pro-image-to-image"
+    }
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 5000
+    },
+    {
+     "name": "image_urls",
+     "label": "Reference images",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 10
+    },
+    {
+     "name": "aspect_ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "3:4",
+      "1:1",
+      "16:9",
+      "2:3"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "quality",
+     "label": "Quality",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "basic",
+      "high"
+     ],
+     "enumLabels": [
+      "1K",
+      "2K"
+     ],
+     "default": "high"
+    },
+    {
+     "name": "output_format",
+     "label": "Format",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "png",
+      "jpeg"
+     ],
+     "default": "png",
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "flat",
+    "by": [
+     "quality"
+    ],
+    "rates": {
+     "basic": 7,
+     "high": 14
+    }
+   }
+  },
+  {
+   "key": "flux2",
+   "name": "Flux 2 Pro",
+   "kind": "image",
+   "blurb": "Cheap, clean photo look. Up to 8 reference images.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "flux-2/pro-text-to-image",
+    "modelIfSet": {
+     "param": "input_urls",
+     "model": "flux-2/pro-image-to-image"
+    }
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Prompt",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "min": 3,
+     "max": 5000
+    },
+    {
+     "name": "input_urls",
+     "label": "Reference images",
+     "type": "string",
+     "media": "image",
+     "multiple": true,
+     "maxItems": 8
+    },
+    {
+     "name": "aspect_ratio",
+     "label": "Shape",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "9:16",
+      "3:4",
+      "1:1",
+      "16:9",
+      "2:3"
+     ],
+     "default": "9:16"
+    },
+    {
+     "name": "resolution",
+     "label": "Resolution",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "1K",
+      "2K"
+     ],
+     "default": "2K"
+    }
+   ],
+   "cost": {
+    "type": "flat",
+    "by": [
+     "resolution"
+    ],
+    "rates": {
+     "1K": 5,
+     "2K": 7
+    }
+   }
+  },
+  {
+   "key": "topaz-image",
+   "name": "Topaz image upscale",
+   "kind": "upscale",
+   "blurb": "Sharpen and enlarge an image before using it as a start frame or static.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "topaz/image-upscale"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "image_url",
+     "label": "Image",
+     "type": "string",
+     "media": "image",
+     "required": true
+    },
+    {
+     "name": "upscale_factor",
+     "label": "Enlarge by",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "1",
+      "2",
+      "4"
+     ],
+     "enumLabels": [
+      "1x (clean up only)",
+      "2x",
+      "4x"
+     ],
+     "default": "2"
+    }
+   ],
+   "cost": {
+    "type": "flat",
+    "by": [
+     "upscale_factor"
+    ],
+    "rates": {
+     "1": 10,
+     "2": 20,
+     "4": 40
+    },
+    "approx": true
+   }
+  },
+  {
+   "key": "suno",
+   "name": "Suno song",
+   "kind": "audio",
+   "blurb": "Full song with vocals from your lyrics, or from an idea. Returns 2 takes. Good for jingle and musical ads.",
+   "create": {
+    "path": "/api/v1/generate",
+    "bodyStyle": "flat",
+    "callBack": "https://proxy.kie.ai/mcp-callback"
+   },
+   "poll": "custom",
+   "pollPath": "/api/v1/generate/record-info?taskId={taskId}",
+   "params": [
+    {
+     "name": "prompt",
+     "label": "Lyrics, or a song idea",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 5000,
+     "desc": "With 'I wrote the lyrics' on, this is sung exactly. Off, describe the song in under 500 characters."
+    },
+    {
+     "name": "customMode",
+     "label": "I wrote the lyrics",
+     "type": "boolean",
+     "default": true
+    },
+    {
+     "name": "style",
+     "label": "Style",
+     "type": "string",
+     "desc": "e.g. upbeat broadway show tune, female lead, piano and brass. Needed when you wrote the lyrics."
+    },
+    {
+     "name": "title",
+     "label": "Title",
+     "type": "string",
+     "max": 80
+    },
+    {
+     "name": "instrumental",
+     "label": "Instrumental only",
+     "type": "boolean",
+     "default": false
+    },
+    {
+     "name": "vocalGender",
+     "label": "Voice",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "f",
+      "m"
+     ],
+     "enumLabels": [
+      "Female",
+      "Male"
+     ],
+     "default": "f"
+    },
+    {
+     "name": "model",
+     "label": "Version",
+     "type": "string",
+     "control": "seg",
+     "enum": [
+      "V5",
+      "V5_5",
+      "V4_5PLUS"
+     ],
+     "default": "V5",
+     "advanced": true
+    },
+    {
+     "name": "negativeTags",
+     "label": "Avoid styles",
+     "type": "string",
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "flat",
+    "rate": 12
+   }
+  },
+  {
+   "key": "tts",
+   "name": "Voiceover",
+   "kind": "audio",
+   "blurb": "ElevenLabs text to speech. Use the result as the voice track for a talking avatar.",
+   "create": {
+    "path": "/api/v1/jobs/createTask",
+    "bodyStyle": "jobs_input",
+    "model": "elevenlabs/text-to-speech-turbo-2-5"
+   },
+   "poll": "jobs",
+   "params": [
+    {
+     "name": "text",
+     "label": "Script",
+     "type": "string",
+     "control": "prompt",
+     "required": true,
+     "max": 5000
+    },
+    {
+     "name": "voice",
+     "label": "Voice",
+     "type": "string",
+     "enum": [
+      "Rachel",
+      "Aria",
+      "Sarah",
+      "Laura",
+      "Charlotte",
+      "Alice",
+      "Matilda",
+      "Jessica",
+      "Lily",
+      "Roger",
+      "Charlie",
+      "George",
+      "Callum",
+      "River",
+      "Liam",
+      "Will",
+      "Eric",
+      "Chris",
+      "Brian",
+      "Daniel",
+      "Bill"
+     ],
+     "default": "Jessica"
+    },
+    {
+     "name": "speed",
+     "label": "Speed",
+     "type": "number",
+     "control": "slider",
+     "min": 0.7,
+     "max": 1.2,
+     "step": 0.05,
+     "default": 1
+    },
+    {
+     "name": "stability",
+     "label": "Stability",
+     "type": "number",
+     "control": "slider",
+     "min": 0,
+     "max": 1,
+     "step": 0.05,
+     "default": 0.5,
+     "advanced": true,
+     "desc": "Lower is more expressive."
+    },
+    {
+     "name": "similarity_boost",
+     "label": "Similarity",
+     "type": "number",
+     "control": "slider",
+     "min": 0,
+     "max": 1,
+     "step": 0.05,
+     "default": 0.75,
+     "advanced": true
+    },
+    {
+     "name": "style",
+     "label": "Style exaggeration",
+     "type": "number",
+     "control": "slider",
+     "min": 0,
+     "max": 1,
+     "step": 0.05,
+     "default": 0,
+     "advanced": true
+    }
+   ],
+   "cost": {
+    "type": "per_1k_chars",
+    "field": "text",
+    "rate": 6
+   }
+  }
+ ]
+}

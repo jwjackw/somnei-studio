@@ -1,0 +1,10 @@
+# your media, history and generated storyboards stay on this laptop
+data/
+uploads/
+boards/
+__pycache__/
+*.pyc
+# never commit keys
+.kie-token
+*.token
+.env

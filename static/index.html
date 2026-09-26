@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>somnei studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><span class="word">somnei</span><span class="sub">studio</span></div>
+  <nav class="views" aria-label="Views">
+    <button type="button" data-view="gen" aria-current="page">Generate</button>
+    <button type="button" data-view="boards">Storyboards</button>
+  </nav>
+  <div class="bar-right">
+    <span class="credits" id="credits" title="kie.ai credit balance">checking credits</span>
+    <button class="ghost" id="openFolder" type="button">Open output folder</button>
+  </div>
+</header>
+
+<main class="app">
+  <!-- models + settings -->
+  <aside class="settings" aria-label="Model and settings">
+    <div class="kinds" id="kinds" role="tablist"></div>
+    <div class="model-list" id="modelList"></div>
+    <div class="model-head" id="modelHead"></div>
+    <form class="params" id="params" autocomplete="off"></form>
+  </aside>
+
+  <!-- composer + stage -->
+  <section class="work">
+    <div class="composer">
+      <div id="promptSlot"></div>
+      <div class="slots" id="mediaSlots"></div>
+      <div class="library">
+        <div class="lib-head">
+          <h2>Your media</h2>
+          <span class="hint" id="libHint">Drop images or videos here, or</span>
+          <label class="ghost small file-btn">Add files<input type="file" id="fileInput" multiple accept="image/*,video/*,audio/*"></label>
+        </div>
+        <div class="lib-grid" id="library"></div>
+      </div>
+      <div class="go-row">
+        <p class="go-note" id="goNote"></p>
+        <button class="go" id="generate" type="button">Generate</button>
+      </div>
+    </div>
+
+    <div class="stage-wrap">
+      <div class="stage-tools">
+        <span id="stageTitle">Nothing selected yet</span>
+        <label class="toggle"><input type="checkbox" id="safeZones"> Show Reels safe zones</label>
+      </div>
+      <div class="stage" id="stage">
+        <div class="frame" id="frame">
+          <div class="empty">Your generation shows up here. Pick a model, fill in the settings, and press Generate.</div>
+        </div>
+      </div>
+      <div class="stage-actions" id="stageActions"></div>
+    </div>
+  </section>
+
+  <!-- history -->
+  <aside class="history" aria-label="History">
+    <h2>History</h2>
+    <div class="hist-list" id="history"></div>
+  </aside>
+</main>
+
+<section class="boards" id="boardsView" hidden>
+  <aside class="board-rail" aria-label="Storyboards">
+    <h2>Storyboards</h2>
+    <div id="boardList"></div>
+    <p class="rail-help">Give Claude a concept and a product in chat. The storyboard shows up here for you to review.</p>
+  </aside>
+  <div class="board-main" id="boardMain">
+    <div class="board-empty">No storyboard open. Pick one on the left.</div>
+  </div>
+</section>
+
+<div class="dropveil" id="dropveil">Drop to add to your media</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/static/app.js"></script>
+<script src="/static/boards.js"></script>
+</body>
+</html>
