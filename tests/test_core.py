@@ -164,6 +164,43 @@ class Locks(unittest.TestCase):
         self.assertEqual(server.clip_prompt({}, {'motion': 'x', 'lock': ''}), 'x')
 
 
+class SongTiming(unittest.TestCase):
+    WORDS = [['[Intro]\nHey', 2.0, 2.3], ['guys.', 2.4, 2.8], ["It's", 3.0, 3.2], ['me.', 3.3, 3.6],
+             ['[Verse 1]\nI’m', 5.0, 5.2], ['sorry', 5.3, 5.8], ['for', 5.9, 6.0], ['the', 6.1, 6.2],
+             ['cuts.', 6.3, 6.9], ["I'm", 8.0, 8.2], ['sorry', 8.3, 8.8], ['for', 8.9, 9.0], ['the', 9.1, 9.2],
+             ['bumps.', 9.3, 9.9]]
+
+    def board(self):
+        return {'scenes': [{'n': 1, 'line': "Hey guys. It's me."}, {'n': 2, 'line': "I'm sorry for the cuts."},
+                           {'n': 3, 'line': "I'm sorry for the bumps."},
+                           {'n': 4, 'line': 'Break up with your razor.', 'still': True}]}
+
+    def test_scenes_cut_on_their_sung_line(self):
+        b = self.board()
+        missed = server.align_scenes(b, self.WORDS, duration=30)
+        self.assertEqual(missed, [])
+        self.assertAlmostEqual(b['song']['offset'], 1.75)       # first word lands 0.25s into the video
+        s = b['scenes']
+        self.assertEqual(s[0]['start'], 0.0)
+        self.assertAlmostEqual(s[1]['start'], 5.0 - 1.75 - 0.12, places=2)
+        self.assertAlmostEqual(s[2]['start'], 8.0 - 1.75 - 0.12, places=2)  # repeated words don't confuse it
+        self.assertEqual(s[0]['end'], s[1]['start'])             # scenes are contiguous
+        self.assertAlmostEqual(s[3]['start'], 9.9 - 1.75 + 0.15, places=2)  # unsung end card after last line
+        self.assertAlmostEqual(s[3]['end'] - s[3]['start'], 2.5, places=2)
+
+    def test_unmatched_lines_are_reported(self):
+        b = self.board()
+        b['scenes'][2]['line'] = 'a line suno never sang'
+        self.assertEqual(server.align_scenes(b, self.WORDS), [3])
+
+    def test_lipsync_scene_costs_per_second_of_audio(self):
+        b = {'video': {'model': 'kling3', 'mode': 'std'}}
+        s = {'start': 0, 'end': 2.2, 'clipModel': 'omnihuman'}
+        self.assertEqual(server.clip_seconds(s, 'omnihuman'), 3)
+        self.assertEqual(server.clip_cost(b, s, 'std'), 81)
+        self.assertEqual(server.clip_cost(b, dict(s, clipModel='kling-avatar'), 'pro'), 48)
+
+
 class MCP(unittest.TestCase):
     def test_handshake_and_tool_schemas(self):
         r = mcp_server.handle({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}})

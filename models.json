@@ -134,7 +134,10 @@
    "create": {
     "path": "/api/v1/jobs/createTask",
     "bodyStyle": "jobs_input",
-    "model": "kling-3.0/video"
+    "model": "kling-3.0/video",
+    "fixed": {
+     "multi_shots": false
+    }
    },
    "poll": "jobs",
    "params": [

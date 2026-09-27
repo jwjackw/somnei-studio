@@ -84,10 +84,11 @@
     const b = B.board;
     if (s.still) return 'Still image, no clip';
     const m = s.clipModel || b.video?.model || 'kling3';
+    const c = b._sceneCosts?.[s.id] || { std: clipCostLocal(s, 'std'), pro: clipCostLocal(s, 'pro') };
+    const secs = Math.ceil(s.end - s.start);
     if (m === 'veo3') return 'Veo 3 Fast · 8s clip with sound · 60 credits';
-    const secs = Math.min(15, Math.max(3, Math.ceil(s.end - s.start)));
-    const r = s.sound ? [20, 27] : [14, 18];
-    return `Kling 3.0 · ${secs}s clip${s.sound ? ' with sound' : ''} · ${secs * r[0]} credits std / ${secs * r[1]} pro`;
+    if (b._lipsync?.[m]) return `${b._lipsync[m]} to the song · ${secs}s · ${fmt(c.std)} credits std / ${fmt(c.pro)} pro`;
+    return `Kling 3.0 · ${Math.min(15, Math.max(3, secs))}s clip${s.sound ? ' with sound' : ''} · ${fmt(c.std)} credits std / ${fmt(c.pro)} pro`;
   }
   function card(s) {
     const d = (s.end - s.start).toFixed(1);
@@ -102,6 +103,7 @@
         ${s.still ? '' : `<label class="sc-lbl" for="mot-${s.id}">Motion</label>
         <textarea class="ed" id="mot-${s.id}" data-bf="motion" rows="2">${esc(s.motion || '')}</textarea>`}
         <p class="sc-clip">${clipLine(s)}</p>
+        ${B.board._lipsync?.[s.clipModel] ? '<div class="sc-tags"><span>lip sync</span></div>' : ''}
         ${(s.tags || []).length ? `<div class="sc-tags">${s.tags.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
         ${versions(s, 'frame')}${versions(s, 'clip')}
         <label class="sc-lbl" for="note-${s.id}">Note for Claude</label>
@@ -172,6 +174,8 @@
   }
   function clipCostLocal(s, mode) {
     if (s.still) return 0;
+    const known = B.board._sceneCosts?.[s.id]?.[mode];
+    if (known != null) return known;
     const m = s.clipModel || B.board.video?.model || 'kling3';
     if (m === 'veo3') return 60;
     const secs = Math.min(15, Math.max(3, Math.ceil(s.end - s.start)));
@@ -257,7 +261,7 @@
       return act('clip', { scene: d.bclip, mode }, `Remaking scene ${s.n}'s clip · ${clipCostLocal(s, mode)} credits.`); }
     if (d.bpick) return act('pick', { scene: d.bpick, key: d.bkey, file: d.bfile });
     if (d.bmode) return act('update', { fields: { mode: d.bmode } });
-    if (d.bsong) return act('update', { fields: { songPick: d.bsong } }, 'Song take chosen');
+    if (d.bsong) { await act('update', { fields: { songPick: d.bsong } }, 'Song take chosen. Scenes re-timed to it.'); return render(); }
     if (d.bsongmake) return act('song', {}, 'Writing the song. Takes 1 to 3 minutes.');
     if (d.bassemble) return act('assemble', {}, 'Cutting the video.');
     if (t.id === 'bRender') {

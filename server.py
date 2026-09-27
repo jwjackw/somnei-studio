@@ -431,10 +431,21 @@ def scene_of(b, sid):
     raise RuntimeError('no scene ' + sid)
 
 
+# Lip sync scenes: the frame is animated by a talking-avatar model driven by that scene's
+# slice of the song, so a character's mouth follows the vocals. Credits per second of audio.
+LIPSYNC = {
+    'omnihuman': {'std': 27, 'pro': 27, 'name': 'OmniHuman lip sync'},
+    'kling-avatar': {'std': 8, 'pro': 16, 'name': 'Kling Avatar lip sync'},
+    'infinitalk': {'std': 12, 'pro': 12, 'name': 'InfiniTalk lip sync'},
+}
+
+
 def clip_seconds(s, model_key):
     dur = s['end'] - s['start']
     if model_key == 'veo3':
         return 8
+    if model_key in LIPSYNC:
+        return int(max(1, -(-dur // 1)))  # billed on the audio slice, no minimum clip
     return int(min(15, max(3, -(-dur // 1))))  # ceil, Kling takes 3..15
 
 
@@ -445,8 +456,133 @@ def clip_cost(b, s, mode=None):
     m = s.get('clipModel') or b.get('video', {}).get('model', 'kling3')
     if m == 'veo3':
         return 60
+    if m in LIPSYNC:
+        return LIPSYNC[m][mode] * clip_seconds(s, m)
     rate = {'std': 14, 'pro': 18}[mode] if not s.get('sound') else {'std': 20, 'pro': 27}[mode]
     return rate * clip_seconds(s, m)
+
+
+def song_file(b):
+    return (b.get('song') or {}).get('pick') or (b.get('audio') or {}).get('file')
+
+
+def song_offset(b):
+    return float((b.get('song') or {}).get('offset', (b.get('audio') or {}).get('start', 0)) or 0)
+
+
+def song_segment(b, s):
+    """Cut this scene's slice of the chosen song, for lip sync."""
+    import subprocess
+    src = song_file(b)
+    if not src:
+        raise RuntimeError(f"scene {s['n']} is set to lip sync but the storyboard has no song yet")
+    ff = ffmpeg_bin()
+    if not ff:
+        raise RuntimeError('ffmpeg not found')
+    start = song_offset(b) + s['start']
+    dur = s['end'] - s['start']
+    name = f"{s['id']}_voice_{int(start * 100)}_{int(dur * 100)}.mp3"
+    d = board_dir(b['id'])
+    if not os.path.isfile(os.path.join(d, name)):
+        p = subprocess.run([ff, '-y', '-v', 'error', '-ss', f'{start:.3f}', '-t', f'{dur:.3f}', '-i', src,
+                            '-ac', '1', '-ar', '44100', '-b:a', '160k', name],
+                           cwd=d, capture_output=True, text=True, creationflags=NO_WINDOW)
+        if p.returncode != 0:
+            raise RuntimeError(p.stderr[-300:])
+    return name
+
+
+# ---- song timing: put every scene cut on the moment its line is sung
+def norm_tok(w):
+    w = re.sub(r'\[[^\]]*\]', ' ', str(w)).lower().replace('’', "'")
+    return re.sub(r"[^a-z0-9%']", '', w)
+
+
+def fetch_song_timing(b, take):
+    """Word timings for one Suno take (0.5 credits). Stored on the take."""
+    r = http('POST', API + '/api/v1/generate/get-timestamped-lyrics',
+             {'taskId': take['taskId'], 'audioId': take['sunoId']})
+    words = (r.get('data') or {}).get('alignedWords') or []
+    take['words'] = [[w.get('word', ''), round(float(w.get('startS', 0)), 3), round(float(w.get('endS', 0)), 3)]
+                     for w in words]
+    return take['words']
+
+
+def align_scenes(b, words, duration=None, lead=0.12, hold=2.5):
+    """Set scene start/end from word timings [[word, start, end], ...].
+
+    Each scene's first lyric word starts its scene (a touch early so the picture lands
+    before the word). Scenes whose line is not sung (end cards, sung:false) sit after
+    the previous line for `hold` seconds. The song is offset so the first sung word
+    starts about a quarter second into the video: the hook plays from frame one.
+    Returns a list of scene numbers that could not be matched."""
+    W = [(norm_tok(w), s, e) for w, s, e in words]
+    W = [x for x in W if x[0]]
+    hits, missed, i = [], [], 0
+    for s in b['scenes']:
+        toks = [t for t in (norm_tok(x) for x in s.get('line', '').split()) if t]
+        if s.get('sung') is False or not toks or s.get('still'):
+            hits.append(None)
+            continue
+        found = None
+        for k in (min(2, len(toks)), 1):
+            for j in range(i, len(W) - k + 1):
+                if all(W[j + m][0] == toks[m] for m in range(k)):
+                    found = j
+                    break
+            if found is not None:
+                break
+        if found is None:
+            hits.append(None)
+            missed.append(s['n'])
+            continue
+        last = min(found + len(toks), len(W)) - 1
+        hits.append((W[found][1], W[last][2]))
+        i = last + 1
+    sung = [h for h in hits if h]
+    if not sung:
+        return [s['n'] for s in b['scenes']]
+    offset = max(0.0, sung[0][0] - 0.25)
+    b.setdefault('song', {})['offset'] = round(offset, 3)
+    n = len(b['scenes'])
+    starts = [None] * n
+    for k, h in enumerate(hits):
+        if h:
+            starts[k] = 0.0 if not any(hits[:k]) else max(0.0, h[0] - offset - lead)
+    starts[0] = 0.0
+    prev_end = 0.0
+    for k in range(n):
+        if starts[k] is None:  # unsung scene: after the previous sung line
+            starts[k] = prev_end + 0.15
+        if hits[k]:
+            prev_end = hits[k][1] - offset
+    for k, s in enumerate(b['scenes']):
+        s['start'] = round(starts[k], 2)
+        if k + 1 < n and starts[k + 1] > starts[k]:
+            s['end'] = round(starts[k + 1], 2)
+        elif hits[k]:
+            tail = hits[k][1] - offset + 1.2
+            if duration:
+                tail = min(tail, duration - offset)
+            s['end'] = round(max(s['start'] + 1.0, tail), 2)
+        else:
+            s['end'] = round(s['start'] + s.get('hold', hold), 2)
+    return missed
+
+
+def retime_board(b):
+    """Align scenes to the picked take, if it has timings and nothing is rendered yet."""
+    sg = b.get('song') or {}
+    take = next((t for t in sg.get('takes', []) if t['file'] == sg.get('pick')), None)
+    if not take or not take.get('words'):
+        return False
+    if any(s.get('clipStatus') in ('done', 'running', 'waiting') for s in b['scenes']):
+        return False
+    dur = probe_duration(os.path.join(board_dir(b['id']), take['file']))
+    missed = align_scenes(b, take['words'], dur)
+    b['timedTo'] = take['file']
+    b['timingMissed'] = missed
+    return True
 
 
 def board_summary(b):
@@ -542,6 +678,23 @@ def start_clip(b, s, mode):
     mk = s.get('clipModel') or b.get('video', {}).get('model', 'kling3')
     model = model_by_id(mk)
     frame_url = board_file_url(b, s['frame'], 'frame')
+    if mk in LIPSYNC:
+        audio_url = board_file_url(b, song_segment(b, s), 'voice')
+        prompt = s.get('motion') or 'the character sings along, expressive face'
+        if mk == 'omnihuman':
+            params = {'image_url': frame_url, 'audio_url': audio_url, 'prompt': prompt,
+                      'output_resolution': '720' if mode == 'std' else '1080'}
+        elif mk == 'kling-avatar':
+            params = {'image_url': frame_url, 'audio_url': audio_url, 'prompt': prompt,
+                      'tier': 'standard' if mode == 'std' else 'pro'}
+        else:
+            params = {'image_url': frame_url, 'audio_url': audio_url, 'prompt': prompt, 'resolution': '720p'}
+        job = create_job(model, params, {'board': b['id'], 'scene': s['id'], 'role': 'clip'},
+                         est=clip_cost(b, s, mode))
+        s['clipJob'] = job['id']
+        s['clipStatus'] = 'running'
+        s.pop('clipError', None)
+        return job
     if mk == 'veo3':
         params = {'prompt': clip_prompt(b, s), 'model': 'veo3_fast', 'imageUrls': [frame_url],
                   'aspectRatio': b.get('aspect', '9:16')}
@@ -582,6 +735,8 @@ def board_on_job(job):
         role = job.get('role')
         if role == 'song':
             sg = b.setdefault('song', {})
+            if job['id'] in sg.get('ignoreJobs', []):
+                return  # set aside by the human: keep the files in Downloads, keep them off the board
             if ok:
                 takes = []
                 for i, f in enumerate(files):
@@ -591,6 +746,13 @@ def board_on_job(job):
                 sg['takes'] = sg.get('takes', []) + takes
                 sg.setdefault('pick', takes[0]['file'])
                 sg['status'] = 'done'
+                if b.get('autoTime', True):
+                    for t in takes:
+                        try:
+                            fetch_song_timing(b, t)
+                        except Exception as e:
+                            t['timingError'] = str(e)[:200]
+                    retime_board(b)
             else:
                 sg['status'] = 'failed'
                 sg['error'] = job.get('error')
@@ -787,8 +949,8 @@ def poller():
 
 
 SCENE_FIELDS = {'line', 'caption', 'picture', 'motion', 'note', 'start', 'end', 'sound', 'still', 'clipModel',
-                'noCaption', 'clipOffset', 'tags', 'refIdx', 'lock', 'fromPrev'}
-BOARD_FIELDS = {'title', 'subtitle', 'style', 'note', 'captions', 'frameResolution', 'clipLock'}
+                'noCaption', 'clipOffset', 'tags', 'refIdx', 'lock', 'fromPrev', 'sung', 'hold'}
+BOARD_FIELDS = {'title', 'subtitle', 'style', 'note', 'captions', 'frameResolution', 'clipLock', 'autoTime'}
 
 
 def board_create(spec):
@@ -835,8 +997,12 @@ def board_action(bid, action, req):
                     tgt[k] = v
                 elif not req.get('scene') and k in ('mode', 'model'):
                     b.setdefault('video', {})[k] = v
+                elif not req.get('scene') and k in ('songLyrics', 'songStyle', 'songTitle'):
+                    b.setdefault('song', {})[{'songLyrics': 'lyrics', 'songStyle': 'style', 'songTitle': 'title'}[k]] = v
                 elif not req.get('scene') and k in ('songPick', 'songOffset'):
                     b.setdefault('song', {})['pick' if k == 'songPick' else 'offset'] = v
+                    if k == 'songPick' and b.get('autoTime', True):
+                        retime_board(b)  # scene cuts follow the take you chose
         elif action == 'pick':
             s = scene_of(b, req['scene'])
             key = req['key']
@@ -884,6 +1050,18 @@ def board_action(bid, action, req):
             if not b.get('song', {}).get('lyrics'):
                 raise RuntimeError('This storyboard has no lyrics yet')
             start_song(b)
+        elif action == 'song-cancel':
+            # Set the song aside: a running job is ignored when it lands, finished takes move
+            # off the board (their files stay in Downloads), and nothing is timed to them.
+            sg = b.setdefault('song', {})
+            if sg.get('job'):
+                sg.setdefault('ignoreJobs', []).append(sg.pop('job'))
+            if sg.get('takes'):
+                sg.setdefault('setAside', []).extend(sg.pop('takes'))
+            sg.pop('pick', None)
+            sg['status'] = 'cancelled'
+            b.pop('timedTo', None)
+            b.pop('timingMissed', None)
         save_board(b)
         return b
 
@@ -978,6 +1156,8 @@ class H(BaseHTTPRequestHandler):
                 if not b:
                     return self.send_json({'error': 'no such storyboard'}, 404)
                 b['_costs'] = {mode: sum(clip_cost(b, s, mode) for s in b['scenes']) for mode in ('std', 'pro')}
+                b['_sceneCosts'] = {s['id']: {m: clip_cost(b, s, m) for m in ('std', 'pro')} for s in b['scenes']}
+                b['_lipsync'] = {k: v['name'] for k, v in LIPSYNC.items()}
                 b['_ffmpeg'] = bool(ffmpeg_bin())
                 return self.send_json(b)
             m = re.match(r'^/boards/([\w-]+)/([^/]+)$', p)
@@ -1029,7 +1209,7 @@ class H(BaseHTTPRequestHandler):
                 return self.send_json({'ok': True})
             if p == '/api/boards/create':
                 return self.send_json(board_create(json.loads(self.body() or b'{}')))
-            m = re.match(r'^/api/boards/([\w-]+)/(update|frame|frames|clip|render|assemble|song|pick)$', p)
+            m = re.match(r'^/api/boards/([\w-]+)/(update|frame|frames|clip|render|assemble|song|song-cancel|pick)$', p)
             if m:
                 req = json.loads(self.body() or b'{}')
                 return self.send_json(board_action(m.group(1), m.group(2), req))
