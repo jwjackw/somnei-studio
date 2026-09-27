@@ -188,6 +188,20 @@ class SongTiming(unittest.TestCase):
         self.assertAlmostEqual(s[3]['start'], 9.9 - 1.75 + 0.15, places=2)  # unsung end card after last line
         self.assertAlmostEqual(s[3]['end'] - s[3]['start'], 2.5, places=2)
 
+    def test_suno_multiword_tokens_do_not_shift_later_scenes(self):
+        # real Suno output from 2026-09-26: "in 20" and "is 60%" came back as single words
+        words = [['[Intro]\nPool', 1.1, 1.4], ['party', 1.5, 1.9], ['in 20', 2.0, 2.5], ['minutes!', 2.6, 3.1],
+                 ['[Verse 1]\nAnd', 3.3, 3.5], ['my', 3.6, 3.8], ['legs', 3.9, 4.2], ['are', 4.3, 4.5],
+                 ['not', 4.6, 4.8], ['ready.', 4.9, 5.4], ['And', 17.0, 17.2], ['I', 17.3, 17.4],
+                 ['make', 17.5, 18.0], ['it', 18.5, 18.8], ['on', 18.9, 19.3], ['time!', 19.4, 20.0],
+                 ['[Outro]\nThe', 28.1, 28.2], ['Peach', 28.3, 28.5], ['is 60%', 28.6, 29.9], ['off', 30.0, 30.1]]
+        b = {'scenes': [{'n': 1, 'line': 'Pool party in 20 minutes!'}, {'n': 2, 'line': 'And my legs are not ready.'},
+                        {'n': 3, 'line': 'And I make it on time!'}, {'n': 4, 'line': 'The Peach is 60% off.'}]}
+        self.assertEqual(server.align_scenes(b, words, duration=40), [])
+        self.assertAlmostEqual(b['scenes'][1]['start'], 3.3 - 0.85 - 0.12, places=2)   # not the chorus "And"
+        self.assertAlmostEqual(b['scenes'][2]['start'], 17.0 - 0.85 - 0.12, places=2)
+        self.assertAlmostEqual(b['scenes'][3]['start'], 28.1 - 0.85 - 0.12, places=2)
+
     def test_unmatched_lines_are_reported(self):
         b = self.board()
         b['scenes'][2]['line'] = 'a line suno never sang'

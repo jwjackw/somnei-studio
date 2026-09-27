@@ -2010,6 +2010,17 @@
      "default": "f"
     },
     {
+     "name": "duration",
+     "label": "Length (V5_5 only)",
+     "type": "integer",
+     "control": "slider",
+     "min": 10,
+     "max": 240,
+     "step": 5,
+     "advanced": true,
+     "desc": "Target song length in seconds. Only the V5_5 version uses it."
+    },
+    {
      "name": "model",
      "label": "Version",
      "type": "string",

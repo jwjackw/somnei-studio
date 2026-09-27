@@ -107,8 +107,18 @@ def upload_to_kie(local_path, filename, mime):
                  f'Content-Type: {mime}\r\n\r\n'.encode() + content + b'\r\n')
     parts.append(f'--{boundary}--\r\n'.encode())
     body = b''.join(parts)
-    r = http('POST', UPLOAD_API + '/api/file-stream-upload', body,
-             {'Content-Type': 'multipart/form-data; boundary=' + boundary}, timeout=600)
+    # The file host drops connections now and then. An upload has no side effects beyond a
+    # temporary file, so retrying is safe (unlike createTask, which is never retried: a lost
+    # response there could mean a job that already started and is being billed).
+    for attempt in range(3):
+        try:
+            r = http('POST', UPLOAD_API + '/api/file-stream-upload', body,
+                     {'Content-Type': 'multipart/form-data; boundary=' + boundary}, timeout=600)
+            break
+        except Exception:
+            if attempt == 2:
+                raise
+            time.sleep(3 * (attempt + 1))
     d = r.get('data') or {}
     url = d.get('downloadUrl') or d.get('fileUrl') or d.get('url')
     if not url:
@@ -516,29 +526,44 @@ def align_scenes(b, words, duration=None, lead=0.12, hold=2.5):
     the previous line for `hold` seconds. The song is offset so the first sung word
     starts about a quarter second into the video: the hook plays from frame one.
     Returns a list of scene numbers that could not be matched."""
-    W = [(norm_tok(w), s, e) for w, s, e in words]
-    W = [x for x in W if x[0]]
-    hits, missed, i = [], [], 0
-    for s in b['scenes']:
+    from difflib import SequenceMatcher
+    # Suno sometimes returns several words as one aligned "word" ("in 20", "is 60%") and glues
+    # section tags on ("[Verse 1]\nAnd"). Strip tags, then split so tokens line up one to one.
+    W = []
+    for w, s, e in words:
+        for part in re.sub(r'\[[^\]]*\]', ' ', str(w)).split():
+            t = norm_tok(part)
+            if t:
+                W.append((t, s, e))
+    # Align every sung line against the whole song at once (in order), so a skipped or
+    # repeated word cannot drag later scenes onto the wrong line.
+    line_toks = []  # (scene index, token)
+    need = {}
+    for k, s in enumerate(b['scenes']):
+        if s.get('sung') is False or s.get('still'):
+            continue
         toks = [t for t in (norm_tok(x) for x in s.get('line', '').split()) if t]
-        if s.get('sung') is False or not toks or s.get('still'):
+        need[k] = max(1, -(-len(toks) // 2))  # at least half the words must be found
+        line_toks += [(k, t) for t in toks]
+    sm = SequenceMatcher(None, [t for _, t in line_toks], [t for t, _, _ in W], autojunk=False)
+    span, count = {}, {}
+    for a, bw, size in sm.get_matching_blocks():
+        for m in range(size):
+            k = line_toks[a + m][0]
+            _, ws, we = W[bw + m]
+            count[k] = count.get(k, 0) + 1
+            span[k] = [ws, we] if k not in span else [span[k][0], we]
+    hits, missed, last_start = [], [], -1.0
+    for k, s in enumerate(b['scenes']):
+        if k not in need:
             hits.append(None)
             continue
-        found = None
-        for k in (min(2, len(toks)), 1):
-            for j in range(i, len(W) - k + 1):
-                if all(W[j + m][0] == toks[m] for m in range(k)):
-                    found = j
-                    break
-            if found is not None:
-                break
-        if found is None:
+        if count.get(k, 0) < need[k] or span[k][0] < last_start:
             hits.append(None)
             missed.append(s['n'])
             continue
-        last = min(found + len(toks), len(W)) - 1
-        hits.append((W[found][1], W[last][2]))
-        i = last + 1
+        hits.append(tuple(span[k]))
+        last_start = span[k][0]
     sung = [h for h in hits if h]
     if not sung:
         return [s['n'] for s in b['scenes']]
@@ -716,6 +741,8 @@ def start_song(b, take=None):
               'model': sg.get('model', 'V5'), 'style': sg['style'], 'title': sg.get('title', b['title'])[:80]}
     if sg.get('vocalGender'):
         params['vocalGender'] = sg['vocalGender']
+    if sg.get('duration') and params['model'] == 'V5_5':
+        params['duration'] = int(sg['duration'])  # only V5_5 honours a target length
     job = create_job(model, params, {'board': b['id'], 'role': 'song'}, est=12)
     sg['job'] = job['id']
     sg['status'] = 'running'
@@ -1015,7 +1042,11 @@ def board_action(bid, action, req):
                 if s.get('fromPrev'):
                     continue  # its start frame is the previous clip's last frame
                 if req.get('all') or s.get('frameStatus') in ('none', 'failed', None):
-                    start_frame(b, s)
+                    try:
+                        start_frame(b, s)
+                    except Exception as e:  # one bad scene must not stop the batch
+                        s['frameStatus'] = 'failed'
+                        s['frameError'] = 'Could not start: ' + str(e)[:200]
                     save_board(b)
                     time.sleep(0.4)
         elif action == 'clip':
@@ -1035,14 +1066,20 @@ def board_action(bid, action, req):
                 if s.get('fromPrev'):
                     s['clipStatus'] = 'waiting'  # starts when the previous clip lands
                     continue
-                start_clip(b, s, mode)
-                started += 1
+                try:
+                    start_clip(b, s, mode)
+                    started += 1
+                except Exception as e:  # one bad scene must not stop the batch
+                    s['clipStatus'] = 'failed'
+                    s['clipError'] = 'Could not start: ' + str(e)[:200]
                 save_board(b)
                 time.sleep(0.4)
             live = [x for x in b['scenes'] if not x.get('still')]
             if not started and all(x.get('clipStatus') == 'done' for x in live):
                 b['status'] = 'assembling'
                 threading.Thread(target=assemble_safe, args=(bid,), daemon=True).start()
+            elif not any(x.get('clipStatus') in ('running', 'waiting') for x in live):
+                b['status'] = 'clips-failed'
         elif action == 'assemble':
             b['status'] = 'assembling'
             threading.Thread(target=assemble_safe, args=(bid,), daemon=True).start()
